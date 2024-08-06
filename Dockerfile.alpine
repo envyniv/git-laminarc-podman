@@ -1,0 +1,47 @@
+FROM docker.io/library/alpine:3 AS base
+RUN adduser -SDh /var/lib/laminar -g 'Laminar' -G users laminar
+
+FROM base AS build
+RUN apk add --no-cache \
+    boost-dev \
+    build-base \
+    capnproto \
+    capnproto-dev \
+    cmake \
+    git \
+    ninja \
+    rapidjson-dev \
+    sqlite-dev \
+    zlib \
+    zlib-dev
+ADD --keep-git-dir https://github.com/ohwgiles/laminar.git /opt/laminar/src
+RUN cmake -B /opt/laminar/build -S /opt/laminar/src -G Ninja  \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --build /opt/laminar/build && \
+    cmake --install /opt/laminar/build
+
+FROM base AS laminarc
+RUN apk add --no-cache capnproto zlib
+COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
+COPY --from=build /usr/share/man/man1/laminarc.1.gz /usr/share/man/man1/laminarc.1.gz
+COPY --from=build /usr/share/bash-completion/completions/laminarc /usr/share/bash-completion/completions/laminarc
+COPY --from=build /usr/share/zsh/site-functions/_laminarc /usr/share/zsh/site-functions/_laminarc
+USER laminar
+WORKDIR /var/lib/laminar
+ENTRYPOINT ["/usr/bin/laminarc"]
+
+FROM base AS laminard
+RUN apk add --no-cache capnproto sqlite-libs zlib
+COPY --from=build /usr/sbin/laminard /usr/sbin/laminard
+COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
+COPY --from=build /usr/share/man/man8/laminard.8.gz /usr/share/man/man8/laminard.8.gz
+COPY --from=build /usr/share/man/man1/laminarc.1.gz /usr/share/man/man1/laminarc.1.gz
+COPY --from=build /etc/laminar.conf /etc/laminar.conf
+COPY --from=build /usr/share/bash-completion/completions/laminarc /usr/share/bash-completion/completions/laminarc
+COPY --from=build /usr/share/zsh/site-functions/_laminarc /usr/share/zsh/site-functions/_laminarc
+USER laminar
+WORKDIR /var/lib/laminar
+EXPOSE 8080
+HEALTHCHECK CMD ["/usr/bin/laminarc", "show-jobs"]
+ENTRYPOINT ["/usr/sbin/laminard"]
+
