@@ -1,0 +1,76 @@
+---
+name: Docker Image CI
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - README.md
+  pull_request:
+    branches: ["main"]
+    paths-ignore:
+      - README.md
+
+env:
+  IMAGE_NAME: skyhisi/laminar
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        os: ["debian", "alpine"]
+        target: ["laminard", "laminarc"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Git commit timestamps
+        run: echo "TIMESTAMP=$(git log -1 --pretty=%ct)" >>$GITHUB_ENV
+
+      - name: Get base image name
+        run: perl -ne '/FROM (.*) AS base/ && print "BASE_IMAGE=$1"' <Dockerfile.${{ matrix.os }} >>$GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}},prefix=${{ matrix.target }}-${{ matrix.os }}-
+            type=sha,prefix=${{ matrix.target }}-${{ matrix.os }}-
+          labels: |
+            org.opencontainers.image.base.name=${{ env.BASE_IMAGE }}
+          annotations: |
+            org.opencontainers.image.base.name=${{ env.BASE_IMAGE }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          target: ${{ matrix.target }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+        env:
+          SOURCE_DATE_EPOCH: ${{ env.TIMESTAMP }}
