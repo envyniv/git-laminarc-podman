@@ -22,7 +22,7 @@ ADD --keep-git-dir https://github.com/capnproto/capnproto.git#master:c++ /opt/ca
 RUN cmake -B /opt/capnproto/build -S /opt/capnproto/src -G Ninja  \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_FIND_LIBRARY_SUFFIXES=.a -DCMAKE_EXE_LINKER_FLAGS=-static -DBUILD_SHARED_LIBS=OFF \
-    -DZLIB_USE_STATIC_LIBS=ON -DOPENSSL_USE_STATIC_LIBS=ON -DWITH_FIBERS=OFF && \
+    -DZLIB_USE_STATIC_LIBS=ON -DOPENSSL_USE_STATIC_LIBS=ON -DWITH_FIBERS=OFF -DBUILD_TESTING=OFF && \
     cmake --build /opt/capnproto/build && \
     cmake --install /opt/capnproto/build
 
