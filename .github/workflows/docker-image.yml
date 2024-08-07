@@ -22,7 +22,7 @@ jobs:
 
     strategy:
       matrix:
-        os: ["debian", "alpine"]
+        os: ["debian", "alpine", "static"]
         target: ["laminard", "laminarc"]
 
     steps:

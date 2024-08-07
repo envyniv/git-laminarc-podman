@@ -1,0 +1,51 @@
+FROM docker.io/library/alpine:3 AS base
+RUN adduser -SDh /var/lib/laminar -g 'Laminar' -G users laminar
+
+FROM base AS build
+RUN apk add --no-cache \
+    boost-dev \
+    build-base \
+    cmake \
+    git \
+    ninja \
+    openssl-dev \
+    openssl-libs-static \
+    rapidjson-dev \
+    sqlite-dev \
+    sqlite-static \
+    upx \
+    zlib \
+    zlib-dev \
+    zlib-static
+
+ADD --keep-git-dir https://github.com/capnproto/capnproto.git#master:c++ /opt/capnproto/src
+RUN cmake -B /opt/capnproto/build -S /opt/capnproto/src -G Ninja  \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_FIND_LIBRARY_SUFFIXES=.a -DCMAKE_EXE_LINKER_FLAGS=-static -DBUILD_SHARED_LIBS=OFF \
+    -DZLIB_USE_STATIC_LIBS=ON -DOPENSSL_USE_STATIC_LIBS=ON -DWITH_FIBERS=OFF && \
+    cmake --build /opt/capnproto/build && \
+    cmake --install /opt/capnproto/build
+
+ADD --keep-git-dir https://github.com/ohwgiles/laminar.git /opt/laminar/src
+RUN cmake -B /opt/laminar/build -S /opt/laminar/src -G Ninja  \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_FIND_LIBRARY_SUFFIXES=.a -DCMAKE_EXE_LINKER_FLAGS=-static -DBUILD_SHARED_LIBS=OFF \
+    -DZLIB_USE_STATIC_LIBS=ON -DOPENSSL_USE_STATIC_LIBS=ON -DSQLite3_LIBRARY=/usr/lib/libsqlite3.a && \
+    cmake --build /opt/laminar/build && \
+    cmake --install /opt/laminar/build --strip && \
+    upx /usr/bin/laminarc /usr/sbin/laminard
+
+FROM scratch AS laminarc
+COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
+ENTRYPOINT ["/usr/bin/laminarc"]
+
+FROM base AS laminard
+COPY --from=build /usr/sbin/laminard /usr/sbin/laminard
+COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
+COPY --from=build /etc/laminar.conf /etc/laminar.conf
+USER laminar
+WORKDIR /var/lib/laminar
+EXPOSE 8080
+HEALTHCHECK CMD ["/usr/bin/laminarc", "show-jobs"]
+ENTRYPOINT ["/usr/sbin/laminard"]
+

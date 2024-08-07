@@ -22,7 +22,7 @@ ADD --keep-git-dir https://github.com/ohwgiles/laminar.git /opt/laminar/src
 RUN cmake -B /opt/laminar/build -S /opt/laminar/src -G Ninja  \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
     cmake --build /opt/laminar/build && \
-    cmake --install /opt/laminar/build
+    cmake --install /opt/laminar/build --strip
 
 FROM base AS laminarc
 RUN apt-get update -yqq && apt-get install -yqq libcapnp-0.9.2 zlib1g
