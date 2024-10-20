@@ -92,6 +92,9 @@ fi
 /usr/sbin/sshd -D
 EOF
 
+COPY <<EOF /etc/git/hooks/post-receive.d/phone-laminarc
+EOF
+
 EXPOSE 22
 
 CMD ["sh", "start.sh"]
