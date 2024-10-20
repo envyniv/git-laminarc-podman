@@ -1,0 +1,81 @@
+FROM docker.io/library/alpine:3 AS base
+RUN adduser -SDh /var/lib/laminar -g 'Laminar' -G users laminar
+
+FROM base AS build
+RUN apk add --no-cache \
+    boost-dev \
+    build-base \
+    capnproto \
+    capnproto-dev \
+    cmake \
+    git \
+    ninja \
+    rapidjson-dev \
+    sqlite-dev \
+    zlib \
+    zlib-dev
+ADD --keep-git-dir https://github.com/ohwgiles/laminar.git /opt/laminar/src
+RUN cmake -B /opt/laminar/build -S /opt/laminar/src -G Ninja  \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr && \
+    cmake --build /opt/laminar/build && \
+    cmake --install /opt/laminar/build --strip
+
+FROM base AS laminarc
+RUN apk add --no-cache capnproto zlib openssh git
+RUN ssh-keygen -A
+COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
+COPY --from=build /usr/share/bash-completion/completions/laminarc /usr/share/bash-completion/completions/laminarc
+
+# from https://github.com/jkarlosb/git-server-docker/blob/master/Dockerfile
+WORKDIR /git-server/
+
+# -D flag avoids password generation
+# -s flag changes user's shell
+RUN mkdir /git-server/keys \
+  && adduser -D -s /usr/bin/git-shell git \
+  && echo git:12345 | chpasswd \
+  && mkdir /home/git/.ssh
+
+# More info: https://git-scm.com/docs/git-shell
+COPY git-shell-commands /home/git/git-shell-commands
+
+# sshd_config file is edited to allow only key auth
+
+COPY <<EOF /etc/ssh/sshd_config
+RSAAuthentication yes \
+PubkeyAuthentication yes \
+AuthorizedKeysFile	.ssh/authorized_keys \
+PasswordAuthentication no \
+Subsystem	sftp	/usr/lib/ssh/sftp-server \
+EOF
+
+COPY <<EOF start.sh 
+#!/bin/sh
+
+# If there is some public key in keys folder
+# then it copies their contents to the authorized_keys file
+if [ "$(ls -A /git-server/keys/)" ]; then
+  cd /home/git
+  cat /git-server/keys/*.pub > .ssh/authorized_keys
+  chown -R git:git .ssh
+  chmod 700 .ssh
+  chmod -R 600 .ssh/*
+fi
+
+# Checking permissions and fixing SGID bit in repos folder
+# More info: https://github.com/jkarlosb/git-server-docker/issues/1
+if [ "$(ls -A /git-server/repos/)" ]; then
+  cd /git-server/repos
+  chown -R git:git .
+  chmod -R ug+rwX .
+  find . -type d -exec chmod g+s '{}' +
+fi
+
+# -D flag avoids executing sshd as a daemon
+/usr/sbin/sshd -D
+EOF
+
+EXPOSE 22
+
+CMD ["sh", "start.sh"]
+
