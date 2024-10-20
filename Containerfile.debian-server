@@ -24,27 +24,13 @@ RUN cmake -B /opt/laminar/build -S /opt/laminar/src -G Ninja  \
     cmake --build /opt/laminar/build && \
     cmake --install /opt/laminar/build --strip
 
-FROM base AS laminarc
-RUN apt-get update -yqq && apt-get install -yqq libcapnp-0.9.2 zlib1g
-COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
-COPY --from=build /usr/share/man/man1/laminarc.1.gz /usr/share/man/man1/laminarc.1.gz
-COPY --from=build /usr/share/bash-completion/completions/laminarc /usr/share/bash-completion/completions/laminarc
-COPY --from=build /usr/share/zsh/site-functions/_laminarc /usr/share/zsh/site-functions/_laminarc
-USER laminar
-WORKDIR /var/lib/laminar
-ENTRYPOINT ["/usr/bin/laminarc"]
-
 FROM base AS laminard
 RUN apt-get update -yqq && apt-get install -yqq libcapnp-0.9.2 libsqlite3-0 zlib1g
 COPY --from=build /usr/sbin/laminard /usr/sbin/laminard
-COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
-COPY --from=build /usr/share/man/man8/laminard.8.gz /usr/share/man/man8/laminard.8.gz
-COPY --from=build /usr/share/man/man1/laminarc.1.gz /usr/share/man/man1/laminarc.1.gz
+#COPY --from=build /usr/bin/laminarc /usr/bin/laminarc
 COPY --from=build /etc/laminar.conf /etc/laminar.conf
-COPY --from=build /usr/share/bash-completion/completions/laminarc /usr/share/bash-completion/completions/laminarc
-COPY --from=build /usr/share/zsh/site-functions/_laminarc /usr/share/zsh/site-functions/_laminarc
 USER laminar
 WORKDIR /var/lib/laminar
 EXPOSE 8080
-HEALTHCHECK CMD ["/usr/bin/laminarc", "show-jobs"]
+#HEALTHCHECK CMD ["/usr/bin/laminarc", "show-jobs"]
 ENTRYPOINT ["/usr/sbin/laminard"]
